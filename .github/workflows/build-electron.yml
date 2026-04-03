@@ -1,0 +1,311 @@
+name: Build Electron App
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Git tag (e.g. v0.58.1)'
+        required: true
+      sha:
+        description: 'Git commit SHA to build'
+        required: true
+      release_notes:
+        description: 'Release notes (markdown)'
+        required: false
+        default: ''
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            arch: arm64
+            platform: darwin
+          - os: windows-latest
+            arch: x64
+            platform: win32
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout source from private repo
+        uses: actions/checkout@v4
+        with:
+          repository: JongoDB/verbatim-studio
+          ref: ${{ inputs.sha }}
+          token: ${{ secrets.SOURCE_REPO_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install CUDA Toolkit
+        if: matrix.platform == 'win32'
+        uses: Jimver/cuda-toolkit@v0.2.30
+        id: cuda-toolkit
+        with:
+          cuda: '12.6.3'
+          method: 'network'
+          sub-packages: '["cudart", "cublas"]'
+
+      - name: Cache Python environment
+        uses: actions/cache@v4
+        id: python-cache
+        with:
+          path: build/python-standalone
+          key: ${{ runner.os }}-${{ matrix.arch }}-python-ml-v5-${{ hashFiles('scripts/requirements-core.txt', 'scripts/requirements-ml.txt', 'scripts/requirements-ml-windows.txt', 'scripts/install-bundled-deps.sh') }}
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Download Python standalone
+        if: steps.python-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: ./scripts/download-python-standalone.sh ${{ matrix.arch }}
+
+      - name: Install Python dependencies (core + ML)
+        if: steps.python-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          echo "Installing all Python dependencies (this may take a while)..."
+          ./scripts/install-bundled-deps.sh
+        env:
+          PIP_DEFAULT_TIMEOUT: 300
+
+      - name: Verify Python dependencies (strict version check)
+        shell: bash
+        run: |
+          if [ "${{ matrix.platform }}" = "win32" ]; then
+            PYTHON_BIN="build/python-standalone/python-windows-x64/python.exe"
+            SITE_PACKAGES="build/python-standalone/python-windows-x64/Lib/site-packages"
+          else
+            PYTHON_BIN="build/python-standalone/python-macos-arm64/bin/python3"
+            SITE_PACKAGES="build/python-standalone/python-macos-arm64/lib/python3.12/site-packages"
+          fi
+          echo "=== STRICT Version Verification ==="
+          PACKAGE_LIST=$("$PYTHON_BIN" -m pip list --path "$SITE_PACKAGES" --format=freeze 2>/dev/null)
+          FAILED=0
+
+          check_version() {
+            local pkg=$1; local expected=$2
+            local actual=$(echo "$PACKAGE_LIST" | grep -i "^${pkg}==" | cut -d'=' -f3 | head -1)
+            if [ -z "$actual" ]; then
+              local pkg_underscore=$(echo "$pkg" | sed 's/-/_/g; s/\./_/g')
+              actual=$(echo "$PACKAGE_LIST" | grep -i "^${pkg_underscore}==" | cut -d'=' -f3 | head -1)
+            fi
+            if [ -z "$actual" ]; then actual="NOT_INSTALLED"; fi
+            if [ "$actual" = "$expected" ]; then echo "✓ $pkg: $actual"
+            else echo "✗ $pkg: $actual (expected $expected)"; return 1; fi
+          }
+
+          check_version "torch" "2.8.0" || FAILED=1
+          check_version "torchaudio" "2.8.0" || FAILED=1
+          check_version "whisperx" "3.3.4" || FAILED=1
+          check_version "pyannote.audio" "3.3.2" || FAILED=1
+          if [ "${{ matrix.platform }}" = "darwin" ]; then
+            check_version "mlx-whisper" "0.4.3" || FAILED=1
+          fi
+          if [ $FAILED -eq 1 ]; then echo "=== BUILD FAILED ==="; exit 1; fi
+          echo "=== All versions verified ✓ ==="
+
+      - name: Cache Whisper models
+        uses: actions/cache@v4
+        id: whisper-cache
+        with:
+          path: build/resources/whisper-models
+          key: whisper-models-v3-${{ runner.os }}-${{ hashFiles('scripts/prepare-whisper-models.sh', 'scripts/prepare-whisper-models-windows.sh') }}
+
+      - name: Prepare Whisper models
+        if: matrix.platform == 'darwin' && steps.whisper-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: ./scripts/prepare-whisper-models.sh
+        env:
+          HF_HUB_DISABLE_PROGRESS_BARS: 1
+
+      - name: Prepare Whisper models (Windows)
+        if: matrix.platform == 'win32' && steps.whisper-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: ./scripts/prepare-whisper-models-windows.sh
+        env:
+          HF_HUB_DISABLE_PROGRESS_BARS: 1
+
+      - name: Verify Whisper models
+        shell: bash
+        run: |
+          if [ "${{ matrix.platform }}" = "win32" ]; then
+            DIR="build/resources/whisper-models/huggingface/hub/models--Systran--faster-whisper-base"
+          else
+            DIR="build/resources/whisper-models/huggingface/hub/models--mlx-community--whisper-base-mlx"
+          fi
+          [ -d "$DIR/snapshots" ] && [ -n "$(ls -A "$DIR/snapshots" 2>/dev/null)" ] || { echo "ERROR: Whisper models missing"; exit 1; }
+          echo "Whisper models verified:"; du -sh "$DIR"
+
+      - name: Cache Embedding models
+        uses: actions/cache@v4
+        id: embedding-cache
+        with:
+          path: build/resources/embedding-models
+          key: embedding-models-v2-${{ runner.os }}-${{ hashFiles('scripts/prepare-embedding-models.sh') }}
+
+      - name: Prepare Embedding models
+        if: steps.embedding-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: ./scripts/prepare-embedding-models.sh
+        env:
+          HF_HUB_DISABLE_PROGRESS_BARS: 1
+
+      - name: Verify Embedding models
+        shell: bash
+        run: |
+          DIR="build/resources/embedding-models/huggingface/hub/models--nomic-ai--nomic-embed-text-v1.5"
+          [ -d "$DIR/snapshots" ] && [ -n "$(ls -A "$DIR/snapshots" 2>/dev/null)" ] || { echo "ERROR: Embedding models missing"; exit 1; }
+          echo "Embedding model verified:"; du -sh "$DIR"
+
+      - name: Cache FFmpeg
+        uses: actions/cache@v4
+        id: ffmpeg-cache
+        with:
+          path: build/resources/ffmpeg
+          key: ffmpeg-v1-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('scripts/download-ffmpeg.sh') }}
+
+      - name: Prepare Electron resources
+        shell: bash
+        run: ./scripts/prepare-electron-resources.sh
+
+      - name: Bundle CUDA runtime libraries
+        if: matrix.platform == 'win32'
+        shell: bash
+        run: ./scripts/bundle-cuda-libs.sh
+
+      - name: Strip Python environment
+        if: matrix.platform == 'win32'
+        shell: bash
+        run: |
+          SP="build/python-standalone/python-windows-x64/Lib/site-packages"
+          rm -rf "$SP/torchvision" "$SP/torchvision-"*.dist-info
+          rm -rf "$SP/nvidia" "$SP/nvidia_"*.dist-info
+          rm -rf "$SP/speechbrain/tests" "$SP/speechbrain/recipes" "$SP/speechbrain/templates" "$SP/speechbrain/benchmarks"
+          rm -rf "$SP/torch/include" "$SP/torch/share" "$SP/torch/lib/cmake" "$SP/torch/test"
+          find "$SP/torch" -name "*.lib" -o -name "*.pdb" | xargs rm -f 2>/dev/null || true
+          find "$SP" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+
+      - name: Verify imports after stripping
+        if: matrix.platform == 'win32'
+        shell: bash
+        run: |
+          build/python-standalone/python-windows-x64/python.exe -c "
+          import torch; import torchaudio; import ctranslate2; import pyannote.audio; import speechbrain
+          print('All imports OK')
+          "
+
+      - name: Update version from git tag
+        shell: bash
+        run: ./scripts/update-version.sh
+
+      - name: Build frontend
+        run: pnpm --filter @verbatim/frontend build:ci
+
+      - name: Build Electron
+        run: pnpm --filter @verbatim/electron build
+
+      - name: Package Electron app (full installer)
+        run: |
+          if [ "${{ matrix.platform }}" = "darwin" ]; then
+            pnpm --filter @verbatim/electron exec electron-builder --publish never --config.mac.identity=null
+          else
+            pnpm --filter @verbatim/electron exec electron-builder --publish never
+          fi
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.MAC_CERTS }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTS_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+
+      - name: Package Electron app (update - no models)
+        run: |
+          if [ "${{ matrix.platform }}" = "darwin" ]; then
+            pnpm --filter @verbatim/electron exec electron-builder --publish never --config electron-builder-update.yml --config.mac.identity=null
+          else
+            pnpm --filter @verbatim/electron exec electron-builder --publish never --config electron-builder-update.yml
+          fi
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.MAC_CERTS }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTS_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: verbatim-studio-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            dist/*.dmg
+            dist/*.exe
+            dist-update/*.dmg
+            dist-update/*.exe
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Write release notes
+        shell: bash
+        run: |
+          if [ -n "$RELEASE_NOTES" ]; then
+            echo "$RELEASE_NOTES" > release-notes.md
+          else
+            echo "## $TAG" > release-notes.md
+          fi
+        env:
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+          TAG: ${{ inputs.tag }}
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          name: ${{ inputs.tag }}
+          body_path: release-notes.md
+          files: artifacts/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
