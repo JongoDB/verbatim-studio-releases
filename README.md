@@ -172,5 +172,5 @@ Verbatim Studio is licensed under the [GNU Affero General Public License v3.0](L
 ---
 
 <p align="center">
-  <a href="https://verbatim.studio">verbatim.studio</a>
+  <a href="https://verbatimstudio.app">verbatimstudio.app</a>
 </p>
