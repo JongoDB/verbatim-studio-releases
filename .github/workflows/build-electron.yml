@@ -292,10 +292,13 @@ jobs:
         shell: bash
         run: |
           if [ -n "$RELEASE_NOTES" ]; then
-            echo "$RELEASE_NOTES" > release-notes.md
+            # Notes arrive JSON-encoded from the trigger workflow — decode them
+            python3 -c "import sys,json; sys.stdout.write(json.loads(sys.stdin.read()))" <<< "$RELEASE_NOTES" > release-notes.md
           else
             echo "## $TAG" > release-notes.md
           fi
+          echo "=== Release notes ==="
+          cat release-notes.md
         env:
           RELEASE_NOTES: ${{ inputs.release_notes }}
           TAG: ${{ inputs.tag }}
