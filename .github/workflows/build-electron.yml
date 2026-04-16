@@ -295,15 +295,10 @@ jobs:
           TAG: ${{ inputs.tag }}
         run: |
           if [ -n "$RELEASE_NOTES" ]; then
-            printf '%s' "$RELEASE_NOTES" | python3 -c "
-          import sys, json
-          raw = sys.stdin.read()
-          try:
-              decoded = json.loads(raw)
-              sys.stdout.write(decoded)
-          except (json.JSONDecodeError, TypeError):
-              sys.stdout.write(raw)
-          " > release-notes.md
+            # Notes arrive base64-encoded to preserve emoji and special chars
+            echo "$RELEASE_NOTES" | base64 -d > release-notes.md 2>/dev/null || \
+            printf '%s' "$RELEASE_NOTES" | base64 -d > release-notes.md 2>/dev/null || \
+            echo "$RELEASE_NOTES" > release-notes.md
           else
             echo "## $TAG" > release-notes.md
           fi
