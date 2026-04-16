@@ -290,18 +290,25 @@ jobs:
 
       - name: Write release notes
         shell: bash
+        env:
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+          TAG: ${{ inputs.tag }}
         run: |
           if [ -n "$RELEASE_NOTES" ]; then
-            # Notes arrive JSON-encoded from the trigger workflow — decode them
-            python3 -c "import sys,json; sys.stdout.write(json.loads(sys.stdin.read()))" <<< "$RELEASE_NOTES" > release-notes.md
+            printf '%s' "$RELEASE_NOTES" | python3 -c "
+          import sys, json
+          raw = sys.stdin.read()
+          try:
+              decoded = json.loads(raw)
+              sys.stdout.write(decoded)
+          except (json.JSONDecodeError, TypeError):
+              sys.stdout.write(raw)
+          " > release-notes.md
           else
             echo "## $TAG" > release-notes.md
           fi
           echo "=== Release notes ==="
           cat release-notes.md
-        env:
-          RELEASE_NOTES: ${{ inputs.release_notes }}
-          TAG: ${{ inputs.tag }}
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
