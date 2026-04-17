@@ -74,7 +74,7 @@ jobs:
         id: python-cache
         with:
           path: build/python-standalone
-          key: ${{ runner.os }}-${{ matrix.arch }}-python-ml-v5-${{ hashFiles('scripts/requirements-core.txt', 'scripts/requirements-ml.txt', 'scripts/requirements-ml-windows.txt', 'scripts/install-bundled-deps.sh') }}
+          key: ${{ runner.os }}-${{ matrix.arch }}-python-ml-v6-${{ hashFiles('scripts/requirements-core.txt', 'scripts/requirements-ml.txt', 'scripts/requirements-ml-windows.txt', 'scripts/install-bundled-deps.sh') }}
 
       - name: Install dependencies
         run: pnpm install
@@ -125,6 +125,9 @@ jobs:
           check_version "pyannote.audio" "3.3.2" || FAILED=1
           if [ "${{ matrix.platform }}" = "darwin" ]; then
             check_version "mlx-whisper" "0.4.3" || FAILED=1
+            # Verify voice/LiveKit deps are bundled on macOS
+            echo "=== Checking LiveKit deps (macOS) ==="
+            echo "$PACKAGE_LIST" | grep -i "livekit" || echo "⚠ LiveKit packages not found"
           fi
           if [ $FAILED -eq 1 ]; then echo "=== BUILD FAILED ==="; exit 1; fi
           echo "=== All versions verified ✓ ==="
