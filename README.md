@@ -52,7 +52,7 @@ The app is self-contained — no Python, Node.js, or other dependencies required
 
 ### Auto-Updates
 
-Verbatim Studio checks this repository automatically for updates. You'll be notified when a new version is available.
+Verbatim Studio checks for updates automatically. You'll be notified when a new version is available with a summary of what's new.
 
 ---
 
@@ -66,25 +66,18 @@ Verbatim Studio checks this repository automatically for updates. You'll be noti
 - **Live transcription** — Real-time speech-to-text from your microphone
 - **Video support** — Drop in MP4, MOV, WebM, or MKV files
 
-<p align="center">
-  <img src="docs/screenshots/transcript-editor.png" alt="Transcript Editor" width="100%">
-</p>
-
 ### Max: Your AI Research Assistant
 
-Max isn't just a chatbot — it's a research tool that understands your content:
-
+- **Voice chat** — Talk to Max directly with full-duplex voice conversations
 - **Query across your entire library** — Ask questions that span multiple files and documents
+- **Web search** — Pull in current information when you need it
 - **Persistent conversations** — Pick up where you left off with saved chat history
 - **Document-aware** — Upload PDFs, images, and notes for Max to reference
 - **OCR built-in** — Extract text from scanned documents and handwriting
-- **Web search** — Pull in current information when you need it
+- **Smart delegation** — Quick model for fast replies, full model for complex questions
+- **Tool calling** — Max can search your library, export transcripts, and more
 
-All powered by IBM Granite, running 100% locally. No API keys. No usage limits. No data leaving your machine.
-
-<p align="center">
-  <img src="docs/screenshots/ai-assistant.png" alt="Max AI Assistant" width="100%">
-</p>
+All powered by IBM Granite, running 100% locally. No API keys. No usage limits.
 
 ### Find Anything, Instantly
 
@@ -92,23 +85,16 @@ All powered by IBM Granite, running 100% locally. No API keys. No usage limits. 
 - **Search everything** — Files, transcripts, documents, notes, and chat history in one place
 - **Smart results** — Context snippets with keyword highlighting and semantic match indicators
 
-<p align="center">
-  <img src="docs/screenshots/search-semantic.png" alt="Search" width="100%">
-</p>
-
-### Professional Editing Tools
+### Professional Editing & Organization
 
 - **Clickable timestamps** — Jump to any moment instantly
 - **Highlights and bookmarks** — Mark important segments for quick reference
-- **Inline annotations** — Add notes directly to transcripts
-- **Keyboard-first workflow** — Control playback without leaving your keyboard
-
-### Organize Your Way
-
+- **Entity extraction** — Automatically identify people, organizations, locations, and key terms
+- **AI transcript quality review** — Automated accuracy scoring
 - **Projects with custom metadata** — Templates for legal cases, medical records, interviews
+- **Trash / recycle bin** — Soft-delete with 30-day auto-purge
 - **Bulk operations** — Select multiple files and act on them at once
-- **Flexible storage** — Local, network drives, Google Drive, OneDrive, Dropbox
-- **Full exports** — TXT, SRT, VTT, DOCX, PDF, or complete backup archives
+- **Full exports** — TXT, SRT, VTT, DOCX, PDF, JSON with AI summaries and speaker stats
 
 ---
 
@@ -138,14 +124,21 @@ Each AI feature loads its own model. Deactivate models in **Settings > AI** to r
 | Transcription (Whisper base) | +200-300 MB | Transcribing audio/video |
 | Speaker ID (pyannote) | +1 GB | Diarization enabled |
 | Semantic search (nomic-embed) | +600 MB | Search index active |
-| Max assistant (Granite 8B) | +5 GB | AI chat / summaries |
+| Max assistant (Granite 4.0) | +5 GB | AI chat / summaries |
+| Voice chat (Kokoro TTS) | +1 GB | Voice sessions active |
 | OCR (Qwen2-VL 2B) | +5 GB | Processing images / scanned PDFs |
+
+> **Tip:** On a 16 GB machine you can comfortably run transcription + diarization + search + Max + voice simultaneously.
+
+### Windows GPU / VRAM
+
+Out of the box, only transcription uses your NVIDIA GPU (via CTranslate2). To accelerate **all** AI features on the GPU, open **Settings > AI** and click **Enable Full GPU Acceleration**.
 
 ---
 
 ## First Launch
 
-On first launch, Verbatim Studio will guide you through downloading the AI models you need. Choose what fits your workflow — transcription only, or the full suite with Max and semantic search.
+On first launch, Verbatim Studio guides you through downloading the AI models you need. Choose what fits your workflow — transcription only, or the full suite with Max and semantic search.
 
 <details>
 <summary><strong>macOS: "App is damaged" or "unidentified developer" warning</strong></summary>
@@ -165,12 +158,21 @@ xattr -c ~/Downloads/Verbatim.Studio-<version>-arm64.dmg
 
 ---
 
+## Source Code
+
+The full source code is available at [JongoDB/verbatim-studio](https://github.com/JongoDB/verbatim-studio).
+
 ## License
 
-Verbatim Studio is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+Verbatim Studio is licensed under the [GNU Affero General Public License v3.0](https://github.com/JongoDB/verbatim-studio/blob/main/LICENSE).
 
 ---
 
 <p align="center">
-  <a href="https://verbatimstudio.app">verbatimstudio.app</a>
+  <strong>Verbatim Studio</strong> — Transcription you can trust.
+</p>
+
+<p align="center">
+  <a href="https://github.com/JongoDB/verbatim-studio/issues">Report Issue</a> •
+  <a href="https://github.com/JongoDB/verbatim-studio/discussions">Discussions</a>
 </p>
