@@ -65,6 +65,9 @@ Verbatim Studio checks for updates automatically. You'll be notified when a new 
 - **Automatic speaker identification** — Know who said what without manual tagging
 - **Live transcription** — Real-time speech-to-text from your microphone
 - **Video support** — Drop in MP4, MOV, WebM, or MKV files
+- **Audio enhancement** — Noise reduction and volume normalization improve accuracy on noisy recordings
+- **Custom dictionary** — Add domain-specific terms (medical, legal, brand names) to boost accuracy
+- **Filler word detection** — Identify and analyze verbal fillers (um, uh, like, you know) across transcripts
 
 ### Max: Your AI Research Assistant
 
@@ -76,6 +79,8 @@ Verbatim Studio checks for updates automatically. You'll be notified when a new 
 - **OCR built-in** — Extract text from scanned documents and handwriting
 - **Smart delegation** — Quick model for fast replies, full model for complex questions
 - **Tool calling** — Max can search your library, export transcripts, and more
+- **Transcript translation** — Translate transcripts to 25+ languages directly from the transcript view or chat
+- **Filler word analysis** — Ask Max to analyze filler word usage patterns in any transcript
 
 All powered by IBM Granite, running 100% locally. No API keys. No usage limits.
 
@@ -95,6 +100,8 @@ All powered by IBM Granite, running 100% locally. No API keys. No usage limits.
 - **Trash / recycle bin** — Soft-delete with 30-day auto-purge
 - **Bulk operations** — Select multiple files and act on them at once
 - **Full exports** — TXT, SRT, VTT, DOCX, PDF, JSON with AI summaries and speaker stats
+- **Post-transcription automation** — Auto-summarize and auto-export when transcription completes
+- **Google Calendar integration** — View upcoming meetings with video links on your dashboard
 
 ---
 
